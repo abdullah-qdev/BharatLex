@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Keep source PDFs local unless you intentionally want to version them.
+legal_docs/**/*.pdf
