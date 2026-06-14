@@ -168,7 +168,7 @@
 
     /* ── Output section ──────────────────────────────────────────────── */
     .output {
-      max-width: 720px;
+      max-width: min(1120px, calc(100vw - 48px));
       margin: 0 auto 96px;
       padding: 0 24px;
     }
@@ -178,6 +178,8 @@
       border-top: 2px solid var(--brass);
       border-radius: 16px;
       padding: 28px 30px 30px;
+      overflow: hidden;
+      overflow-wrap: anywhere;
     }
     .ruling.is-empty {
       border-top-color: var(--line);
@@ -221,9 +223,9 @@
     .ruling__heading:first-child { margin-top: 0; }
     .ruling__list { margin: 8px 0 0; padding-left: 20px; }
     .ruling__list li { margin: 6px 0; }
-    .ruling dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; }
+    .ruling dl { margin: 0; display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 6px 18px; }
     .ruling dt { font-family: var(--mono); font-size: 12px; color: var(--brass); align-self: baseline; }
-    .ruling dd { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text); }
+    .ruling dd { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text); min-width: 0; }
     .ruling ul { margin: 0; padding-left: 18px; }
     .ruling li { font-size: 15px; line-height: 1.6; margin: 2px 0; }
     .debate { display: grid; gap: 16px; }
@@ -257,6 +259,56 @@
       font-size: 12px;
       margin-left: 6px;
     }
+    .input-preview {
+      margin-top: 18px;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(10, 13, 23, 0.34);
+    }
+    .input-preview__label {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin-bottom: 8px;
+    }
+    .input-preview__text {
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text);
+      max-height: 150px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .draft-callout {
+      border: 1px solid rgba(200,163,91,0.35);
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(200,163,91,0.07);
+    }
+    .draft-editor {
+      width: 100%;
+      min-height: 360px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--text);
+      background: rgba(10, 13, 23, 0.55);
+      font-family: var(--serif);
+      font-size: 15px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+    .draft-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
 
     .reveal { animation: rise .5s cubic-bezier(.2,.7,.2,1); }
     @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -285,7 +337,7 @@
       <button id="submitBtn" class="btn btn--primary" disabled>Analyze</button>
       <button id="resetBtn" class="btn">Clear</button>
       <input type="file" id="fileInput"
-             accept="image/*,.pdf,.txt,.png,.jpg,.jpeg,.webp,.tiff,.bmp"
+             accept="image/*,.txt,.png,.jpg,.jpeg,.webp,.tiff,.bmp"
              hidden />
     </div>
 
@@ -302,7 +354,7 @@
 
 <script>
 // ─── Config ───────────────────────────────────────────────────────────────────
-const API_BASE          = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:8000";
+const API_BASE          = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:8012";
 const ANALYZE_AUDIO_URL = API_BASE + "/api/speech/ask?include_final=true&debug=false&save_conversation=false";
 const OCR_URL           = API_BASE + "/api/ocr/image?lang=eng%2Bhin";
 const ANALYZE_TEXT_URL  = API_BASE + "/api/rag/ask";
@@ -314,6 +366,7 @@ let timerInterval, recSeconds = 0;
 let rawBlob = null, ocrText = null;
 let activeInput = null;        // 'audio' | 'file'
 let isRecording = false, recordingUsed = false;
+let capturedInput = null;
 
 // ─── Console-only diagnostics ─────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -414,6 +467,288 @@ function section(title, value) {
   if (!inner) return "";
   return '<div class="ruling__section"><h4>' + esc(title) + "</h4>" + inner + "</div>";
 }
+function showWorking(title, text) {
+  const ruling = $("ruling");
+  ruling.className = "ruling reveal";
+  ruling.innerHTML =
+    '<p class="ruling__eyebrow">' + esc(title) + '</p>' +
+    '<div class="input-preview">' +
+      '<div class="input-preview__label">Captured input</div>' +
+      '<div class="input-preview__text">' + esc(text || "Waiting for extracted text...") + '</div>' +
+    '</div>';
+}
+function inputSection(d, fallback) {
+  const source = d.input_source ?? {};
+  const text = source.ocr_text || source.transcript || capturedInput?.text || fallback;
+  if (!text) return "";
+  const label = source.type === "speech" ? "Speech transcript" :
+    source.type === "ocr_image" ? "OCR extracted text" :
+    capturedInput?.label || "Captured input";
+  return '<div class="ruling__section"><h4>' + esc(label) + '</h4>' +
+    '<div class="input-preview"><div class="input-preview__text">' + esc(text) + '</div></div></div>';
+}
+function draftRecommendation(d) {
+  const haystack = [
+    d.question,
+    d.final_answer,
+    d.category?.label,
+    d.category?.key,
+    capturedInput?.text,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  const items = [];
+  if (/sexual harassment|posh|harass|molest|inappropriate|assault/.test(haystack)) {
+    items.push("Draft a POSH written complaint to the Internal Committee with incident dates, accused person, witnesses, screenshots/messages, and requested interim protection.");
+  }
+  if (/terminat|fired|dismiss|severance|salary|wages|notice period/.test(haystack)) {
+    items.push("Draft an employment demand notice asking for written termination reasons, unpaid salary/severance, relieving documents, and a response deadline.");
+  }
+  if (/fraud|scam|otp|upi|bank|unauthori|transaction/.test(haystack)) {
+    items.push("Draft a cyber/banking complaint summary with transaction IDs, dates, amounts, bank/app name, screenshots, and acknowledgement numbers.");
+  }
+  if (/refund|replacement|defect|seller|shop|consumer|delivery/.test(haystack)) {
+    items.push("Draft a consumer complaint/legal notice with invoice details, seller name/address, defect proof, and the exact remedy requested.");
+  }
+  if (d.notice_readiness?.questions?.length) {
+    items.push("Before drafting, collect: " + d.notice_readiness.questions.join(" "));
+  }
+
+  if (!items.length) return "";
+  return '<div class="ruling__section"><h4>Drafting next</h4><div class="draft-callout">' +
+    renderValue(items) +
+    '</div></div>';
+}
+function makeDraftDocument(d) {
+  const text = [
+    d.question,
+    d.final_answer,
+    d.category?.label,
+    d.category?.key,
+    capturedInput?.text,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const facts = capturedInput?.text || d.question || "[Describe the facts in chronological order]";
+  const today = new Date().toLocaleDateString("en-IN");
+
+  let title = "";
+  let body = "";
+  if (/sexual harassment|posh|harass|molest|inappropriate|assault/.test(text)) {
+    title = "POSH Written Complaint";
+    body = `FORMAL DRAFT: POSH WRITTEN COMPLAINT
+
+Date: ${today}
+
+To,
+The Internal Committee / Presiding Officer
+[Name of Organisation]
+[Office Address]
+[Official IC/HR Email]
+
+CC:
+[HR Head / Reporting Manager, if safe]
+[Personal email copy for record]
+
+Subject: Complaint of sexual harassment at workplace under the POSH Act, 2013
+
+Complainant: [Your full name, designation, department, contact]
+Respondent: [Name/designation of person complained against]
+Workplace: [Office/branch/location]
+City/State: [Your city/state]
+
+Respected Sir/Madam,
+
+I am submitting this written complaint regarding sexual harassment at the workplace. The relevant facts are stated below.
+
+Facts and chronology:
+${facts}
+
+Evidence available:
+- [Screenshots/messages/emails/call logs]
+- [Witness names, if any]
+- [Dates/times/locations of incidents]
+
+Relief requested:
+- Inquiry by the Internal Committee
+- Interim protection from retaliation/contact, if required
+- Preservation of CCTV/messages/emails/records
+- Written acknowledgement of this complaint
+- Details of the next hearing/procedure and point of contact
+
+Declaration:
+The above facts are true to the best of my knowledge.
+
+Enclosures:
+1. [Evidence file name]
+2. [Identity/employment proof, if needed]
+
+Signature:
+[Your name]`;
+  } else if (/terminat|fired|dismiss|severance|salary|wages|notice period/.test(text)) {
+    title = "Employment Demand Notice";
+    body = `FORMAL DRAFT: EMPLOYMENT DEMAND NOTICE
+
+Date: ${today}
+
+To,
+[Employer/HR/Company Name]
+[Company Address]
+[HR/Legal Email]
+
+CC:
+[Reporting Manager]
+[Personal email copy for record]
+
+Subject: Demand for written reasons, pending dues, and employment records
+
+Employee: [Your full name, employee ID, designation]
+Employer: [Company name]
+Employment period: [Joining date to termination date]
+City/State: [Work location]
+
+Respected Sir/Madam,
+
+This is a formal request for written clarification and settlement of pending employment dues/records.
+
+Facts and chronology:
+${facts}
+
+Demands:
+- Written reasons/order for termination
+- Pending salary, severance, notice pay, incentives, or other dues
+- Relieving letter, experience letter, and final settlement statement
+- Copies of employment contract, policies, attendance, and appraisal records
+
+Please respond in writing within [7/15] days.
+
+If there is no response, I may approach the appropriate labour authority/forum as applicable.
+
+Enclosures:
+1. [Offer letter/appointment letter]
+2. [Salary slips/bank statement]
+3. [Termination message/email]
+
+Signature:
+[Your name]`;
+  } else if (/fraud|scam|otp|upi|bank|unauthori|transaction/.test(text)) {
+    title = "Cyber/Banking Complaint Summary";
+    body = `FORMAL DRAFT: CYBER / BANKING COMPLAINT SUMMARY
+
+Date: ${today}
+
+To,
+Cyber Crime Cell / Bank Grievance Officer
+[City/State]
+[Police station/cyber cell email or bank grievance email]
+
+Reference:
+[1930 complaint acknowledgement number, if any]
+[cybercrime.gov.in complaint ID, if any]
+
+Subject: Complaint regarding cyber/financial fraud
+
+Complainant: [Your full name, mobile, email, address]
+Bank/Wallet/App: [Name]
+
+Facts and chronology:
+${facts}
+
+Transaction details:
+- Date/time:
+- Amount:
+- UPI ID/account/card/wallet:
+- Transaction/reference ID:
+- Suspect phone/email/URL/account:
+
+Action requested:
+- Freeze/reverse fraudulent transaction where possible
+- Register complaint and provide acknowledgement
+- Preserve logs, KYC, beneficiary account details, and transaction trail
+
+Enclosures:
+1. [Transaction screenshot]
+2. [Bank statement]
+3. [Messages/call logs/URLs]
+
+Signature:
+[Your name]`;
+  } else if (/refund|replacement|defect|seller|shop|consumer|delivery/.test(text)) {
+    title = "Consumer Complaint / Legal Notice";
+    body = `FORMAL DRAFT: CONSUMER COMPLAINT / LEGAL NOTICE
+
+Date: ${today}
+
+To,
+[Seller/Service Provider Name]
+[Address / Email]
+[Customer support / grievance email]
+
+Subject: Notice regarding defective goods / deficient service
+
+Consumer: [Your full name, phone, email, address]
+Opposite Party: [Seller/company/platform]
+Product/Service: [Details]
+Invoice/Order No.: [Details]
+City/State: [Your city/state]
+
+Sir/Madam,
+
+This notice is being sent regarding the defective goods/deficient service described below.
+
+Facts and chronology:
+${facts}
+
+Relief requested:
+- Refund / replacement / repair / compensation
+- Written response within [7/15] days
+- Preservation of invoice, warranty, service, and communication records
+
+If not resolved, I may proceed before the appropriate consumer forum as per law.
+
+Enclosures:
+1. [Invoice/order receipt]
+2. [Photos/videos of defect]
+3. [Warranty/service records]
+4. [Prior chats/emails]
+
+Signature:
+[Your name]`;
+  }
+
+  if (!title) return "";
+  return '<div class="ruling__section"><h4>Formal draft document</h4>' +
+    '<textarea id="draftText" class="draft-editor">' + esc(body) + '</textarea>' +
+    '<div class="draft-actions">' +
+      '<button class="btn" onclick="copyDraft()">Copy draft</button>' +
+      '<button class="btn btn--primary" onclick="downloadDraft()">' + esc("Download " + title) + '</button>' +
+    '</div></div>';
+}
+function officialReferences(d) {
+  const text = [
+    d.question,
+    d.final_answer,
+    d.category?.label,
+    d.category?.key,
+    capturedInput?.text,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const refs = [];
+
+  if (/sexual harassment|posh|harass|molest|inappropriate|assault|threat|unsafe/.test(text)) {
+    refs.push("Emergency safety: dial 112 or use the 112 India app.");
+    refs.push("Workplace sexual harassment: file a written complaint with the organisation's Internal Committee. If there is immediate danger, contact local police/emergency services first.");
+    refs.push("If you share city/state, add local Women Police Cell / State Women Commission contact details.");
+  }
+  if (/fraud|scam|otp|upi|bank|unauthori|transaction|cyber/.test(text)) {
+    refs.push("Cyber financial fraud: call 1930 quickly and file at cybercrime.gov.in.");
+  }
+  if (/refund|replacement|defect|seller|shop|consumer|delivery/.test(text)) {
+    refs.push("Consumer grievance: National Consumer Helpline 1915, WhatsApp +91 8800001915, consumerhelpline.gov.in.");
+  }
+  if (/terminat|fired|dismiss|severance|salary|wages|notice period|workplace/.test(text)) {
+    refs.push("Employment/labour dispute: use the Ministry of Labour SAMADHAN portal or contact the local labour commissioner/labour office.");
+  }
+
+  if (!refs.length) return "";
+  return section("Official references", refs);
+}
 function renderDebate(d) {
   if (Array.isArray(d.debate_rounds) && d.debate_rounds.length) {
     return '<div class="debate">' + d.debate_rounds.map(round => {
@@ -455,11 +790,16 @@ function showResults(d, transcriptFallback) {
   let html = "";
   if (d.category) html += '<p class="ruling__eyebrow">Analysis · ' + esc(d.category) + "</p>";
   else            html += '<p class="ruling__eyebrow">Analysis</p>';
+  html += inputSection(d, transcript);
   html += section("Conclusion", d.final_answer);
-  html += section("Notice readiness", d.notice_readiness);
   html += section("Uploaded evidence", d.input_source?.evidence_match);
+  html += draftRecommendation(d);
+  html += makeDraftDocument(d);
+  html += officialReferences(d);
   html += debateSection(d);
-  if (!d.final_answer) html += section("Result", d);
+  if (!d.final_answer) {
+    html += section("Status", d.final_error || d.message || "No final conclusion was returned. Check backend logs or retry the request.");
+  }
 
   const ruling = $("ruling");
   ruling.className = "ruling reveal";
@@ -471,6 +811,27 @@ function clearOutput() {
   const ruling = $("ruling");
   ruling.className = "ruling is-empty";
   ruling.textContent = "No analysis yet. Capture audio or upload a document, then press Analyze.";
+}
+function copyDraft() {
+  const draft = $("draftText");
+  if (!draft) return;
+  draft.select();
+  navigator.clipboard?.writeText(draft.value);
+  setStatus("Draft copied", "ok");
+}
+function downloadDraft() {
+  const draft = $("draftText");
+  if (!draft) return;
+  const blob = new Blob([draft.value], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "bharatlex-draft.txt";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setStatus("Draft downloaded", "ok");
 }
 
 // ─── OGG conversion (audio path) ──────────────────────────────────────────────
@@ -547,6 +908,8 @@ async function stopRecording() {
   stage("blob", "done");
 
   activeInput = "audio";
+  capturedInput = { label: "Speech recording", text: "Audio captured. Press Analyze to transcribe and run legal analysis." };
+  showWorking("Audio captured", capturedInput.text);
   setStatus("Ready to analyze · audio", "ok");
   updateSubmitState();
 }
@@ -560,8 +923,34 @@ $("fileInput").onchange = async () => {
   clog("file: " + file.name + " (" + file.type + ", " + file.size + " bytes)");
   stage("file", "done");
   stage("ocr", "active");
-  setStatus("Reading document…", "busy");
+  setStatus("Document uploaded. Extracting text...", "busy");
+  showWorking("Reading document", "Uploaded: " + file.name + "\nExtracting readable text...");
   $("submitBtn").disabled = true;
+
+  if (file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt")) {
+    try {
+      ocrText = await file.text();
+    } catch {
+      stage("ocr","error");
+      setError("Could not read text file");
+      return;
+    }
+    if (!ocrText.trim()) { stage("ocr","error"); setError("Text file is empty"); return; }
+    capturedInput = { label: "Uploaded text", text: ocrText };
+    activeInput = "file";
+    stage("ocr", "done");
+    setStatus("Text captured. Ready to analyze.", "ok");
+    showWorking("Text captured", ocrText);
+    updateSubmitState();
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    stage("ocr","error");
+    setError("Upload an image screenshot or .txt file");
+    showWorking("Unsupported document", "For this demo, upload a screenshot/image for OCR or a .txt file. PDF OCR is not wired yet.");
+    return;
+  }
 
   const fd = new FormData();
   fd.append("file", file, file.name);
@@ -585,6 +974,8 @@ $("fileInput").onchange = async () => {
   stage("ocr", "done");
   clog("OCR text (" + ocrText.length + " chars):\n" + ocrText);
 
+  capturedInput = { label: "OCR extracted text", text: ocrText };
+  showWorking("OCR complete", ocrText);
   activeInput = "file";
   setStatus("Ready to analyze · document", "ok");
   updateSubmitState();
@@ -605,6 +996,7 @@ async function submitAudio() {
   catch (err) { stage("ogg","error"); setError("Audio prep failed"); updateSubmitState(); return; }
 
   setStatus("Analyzing…", "busy");
+  showWorking("Analyzing speech", capturedInput?.text || "Transcribing the recording, then running legal analysis...");
   stage("upload", "active");
   const fd = new FormData();
   fd.append("file", ogg, "recording.ogg");
@@ -620,13 +1012,17 @@ async function submitAudio() {
   let data; try { data = JSON.parse(text); }
   catch { stage("stt","error"); setError("Response not JSON"); updateSubmitState(); return; }
 
-  showResults(data.data ?? data);
+  const payload = data.data ?? data;
+  const transcript = payload.input_source?.transcript || payload.transcript;
+  if (transcript) capturedInput = { label: "Speech transcript", text: transcript };
+  showResults(payload);
   stage("stt","done");
   setStatus("Complete", "ok");
 }
 
 async function submitText() {
   setStatus("Analyzing…", "busy");
+  showWorking("Analyzing captured text", ocrText);
   stage("analyze", "active");
   let res, text;
   try {
@@ -661,7 +1057,7 @@ $("resetBtn").onclick = () => {
   }
   clearInterval(timerInterval);
   recSeconds = 0; chunks = [];
-  rawBlob = null; ocrText = null; activeInput = null;
+  rawBlob = null; ocrText = null; activeInput = null; capturedInput = null;
   isRecording = false; recordingUsed = false;
 
   $("recordBtn").disabled = false;
