@@ -3,3 +3,5 @@ uvicorn[standard]==0.34.0
 pymongo==4.10.1
 python-dotenv==1.0.1
 pypdf==5.1.0
+opencv-python-headless
+pytesseract

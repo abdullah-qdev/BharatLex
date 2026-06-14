@@ -19,7 +19,6 @@ Then build the index (re-run whenever you add or change files):
 ==========================================================================
 """
 
-from __future__ import annotations
 import re
 import pickle
 from pathlib import Path

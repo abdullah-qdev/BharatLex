@@ -9,7 +9,6 @@ Run order:
     2. python run.py        # temporary command-line input (see run.py)
 """
 
-from __future__ import annotations
 import os
 import json
 import asyncio
@@ -23,7 +22,7 @@ from corpus import search as retrieve_statutes   # local numpy RAG (corpus.py)
 # ======================= CONFIG — change these ===========================
 # >>> PUT YOUR GEMINI API KEY HERE (from https://aistudio.google.com/apikey)
 # Either export GEMINI_API_KEY in your shell, or paste it inside the quotes.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "PASTE-YOUR-GEMINI-KEY-HERE")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", " YOUR_KEY_HERE ")
 
 OLLAMA_MODEL = "llama3.1"            # the 4 debaters. Lighter+faster: "qwen2.5:7b"
 GEMINI_MODEL = "gemini-3.5-flash"   # the judge. For deeper reasoning use a pro tier.
@@ -83,33 +82,21 @@ def parse(text, fallback):
         return fallback
 
 
-async def ollama_say(system: str, user: str, fmt: str | None = None) -> str:
+async def ollama_say(system: str, user: str) -> str:
     resp = await ollama.chat(
         model=OLLAMA_MODEL,
         messages=[{"role": "system", "content": system},
                   {"role": "user", "content": user}],
-        format=fmt or "",                    # "json" constrains output to valid JSON
     )
     return resp["message"]["content"]
 
 
 async def intake(grievance_text: str, user_facts: dict) -> dict:
-    sys = ('Extract a structured fact set from this Indian grievance. Respond with a '
-           'JSON object having exactly two keys: "facts" (an object of key facts) and '
-           '"missing_info" (a list of strings naming essential facts that are missing).')
-    out = parse(await ollama_say(sys,
-        f"Grievance: {grievance_text}\nKnown: {json.dumps(user_facts)}",
-        fmt="json"), {})
-    if not isinstance(out, dict):
-        out = {}
-    # Normalize: some local models put the facts at the top level instead of under "facts".
-    facts = out.get("facts")
-    if not isinstance(facts, dict):
-        facts = {k: v for k, v in out.items() if k not in ("facts", "missing_info")}
-    missing = out.get("missing_info")
-    if not isinstance(missing, list):
-        missing = []
-    return {"facts": facts, "missing_info": missing}
+    sys = ("Extract a structured fact set from this Indian grievance. JSON only: "
+           '{"facts": {...}, "missing_info": ["..."]}')
+    return parse(await ollama_say(sys,
+        f"Grievance: {grievance_text}\nKnown: {json.dumps(user_facts)}"),
+        {"facts": {}, "missing_info": []})
 
 
 async def debate(grievance: str, facts: dict, statutes: list) -> list:
@@ -174,7 +161,7 @@ async def run_grievance_pipeline(grievance_text: str, category: str,
     if intake_out.get("missing_info"):
         return {"status": "needs_input", "questions": intake_out["missing_info"]}
 
-    facts = intake_out.get("facts", {})
+    facts = intake_out["facts"]
     statutes = await retrieve_statutes(grievance_text, CATEGORY_LAWS.get(category, []))
     transcript = await debate(grievance_text, facts, statutes)
     verdict = await judge(grievance_text, facts, statutes, transcript)
