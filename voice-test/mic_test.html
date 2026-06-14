@@ -210,11 +210,53 @@
       color: var(--text);
       margin: 0;
     }
+    .ruling__text + .ruling__text { margin-top: 12px; }
+    .ruling__heading {
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--brass-bright);
+      margin: 18px 0 8px;
+    }
+    .ruling__heading:first-child { margin-top: 0; }
+    .ruling__list { margin: 8px 0 0; padding-left: 20px; }
+    .ruling__list li { margin: 6px 0; }
     .ruling dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; }
     .ruling dt { font-family: var(--mono); font-size: 12px; color: var(--brass); align-self: baseline; }
     .ruling dd { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text); }
     .ruling ul { margin: 0; padding-left: 18px; }
     .ruling li { font-size: 15px; line-height: 1.6; margin: 2px 0; }
+    .debate { display: grid; gap: 16px; }
+    .debate__round {
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(10, 13, 23, 0.28);
+    }
+    .debate__round-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--brass);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: rgba(200,163,91,0.06);
+    }
+    .debate__turn { padding: 14px; }
+    .debate__turn + .debate__turn { border-top: 1px solid var(--line-soft); }
+    .debate__agent {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--brass-bright);
+      margin-bottom: 8px;
+    }
+    .debate__role {
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 12px;
+      margin-left: 6px;
+    }
 
     .reveal { animation: rise .5s cubic-bezier(.2,.7,.2,1); }
     @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -260,14 +302,11 @@
 
 <script>
 // ─── Config ───────────────────────────────────────────────────────────────────
-const API_BASE          = "http://127.0.0.1:8000";
-const ANALYZE_AUDIO_URL = API_BASE + "/analyze-audio";   // audio  -> STT + analysis
-const OCR_URL           = API_BASE + "/ocr";             // file/image -> ocr_normalized.py -> txt
-const ANALYZE_TEXT_URL  = API_BASE + "/analyze-text";    // txt -> analysis
-//
-// NOTE: the browser can't run ../backend/ocr/ocr_normalized.py directly. Expose it
-// as a FastAPI route (OCR_URL) that accepts the file, runs the script, and returns
-// JSON: { text: "..." }.
+const API_BASE          = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:8000";
+const ANALYZE_AUDIO_URL = API_BASE + "/api/speech/ask?include_final=true&debug=false&save_conversation=false";
+const OCR_URL           = API_BASE + "/api/ocr/image?lang=eng%2Bhin";
+const ANALYZE_TEXT_URL  = API_BASE + "/api/rag/ask";
+// To test another backend port, open mic_test.html?api=http://127.0.0.1:8012
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let recorder, micStream, chunks = [];
@@ -307,20 +346,99 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
+function cleanMarkdown(s) {
+  return String(s)
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .trim();
+}
+function renderTextBlock(text) {
+  const lines = cleanMarkdown(text).split(/\r?\n/);
+  let html = "";
+  let listOpen = false;
+
+  const closeList = () => {
+    if (listOpen) {
+      html += "</ul>";
+      listOpen = false;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+
+    const heading = line.match(/^([^:]{2,48}):$/);
+    if (heading) {
+      closeList();
+      html += '<h5 class="ruling__heading">' + esc(heading[1]) + "</h5>";
+      continue;
+    }
+
+    const numbered = line.match(/^\d+[\.)]\s+(.*)$/);
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    if (numbered || bullet) {
+      if (!listOpen) {
+        html += '<ul class="ruling__list">';
+        listOpen = true;
+      }
+      html += "<li>" + esc(numbered?.[1] ?? bullet?.[1]) + "</li>";
+      continue;
+    }
+
+    closeList();
+    html += '<p class="ruling__text">' + esc(line) + "</p>";
+  }
+
+  closeList();
+  return html;
+}
+function renderObject(v) {
+  return "<dl>" + Object.entries(v).map(([k, val]) =>
+    "<dt>" + esc(k.replace(/_/g, " ")) + "</dt><dd>" + renderValue(val) + "</dd>"
+  ).join("") + "</dl>";
+}
 function renderValue(v) {
   if (v == null || v === "") return "";
   if (Array.isArray(v))
-    return "<ul>" + v.map(i => "<li>" + esc(typeof i === "object" ? JSON.stringify(i) : i) + "</li>").join("") + "</ul>";
+    return '<ul class="ruling__list">' + v.map(i => "<li>" + (typeof i === "object" ? renderValue(i) : esc(i)) + "</li>").join("") + "</ul>";
   if (typeof v === "object")
-    return "<dl>" + Object.entries(v).map(([k, val]) =>
-      "<dt>" + esc(k) + "</dt><dd>" + (typeof val === "object" ? esc(JSON.stringify(val)) : esc(val)) + "</dd>"
-    ).join("") + "</dl>";
-  return '<p class="ruling__text">' + esc(v) + "</p>";
+    return renderObject(v);
+  return renderTextBlock(v);
 }
 function section(title, value) {
   const inner = renderValue(value);
   if (!inner) return "";
   return '<div class="ruling__section"><h4>' + esc(title) + "</h4>" + inner + "</div>";
+}
+function renderDebate(d) {
+  if (Array.isArray(d.debate_rounds) && d.debate_rounds.length) {
+    return '<div class="debate">' + d.debate_rounds.map(round => {
+      const turns = Array.isArray(round.turns) ? round.turns : [];
+      return '<article class="debate__round">' +
+        '<div class="debate__round-title">Round ' + esc(round.round_number ?? "") + '</div>' +
+        turns.map(turn =>
+          '<div class="debate__turn">' +
+            '<div class="debate__agent">' + esc(turn.agent_name ?? turn.agent_key ?? "Agent") +
+            (turn.role ? '<span class="debate__role">' + esc(turn.role) + '</span>' : "") +
+            '</div>' +
+            renderTextBlock(turn.response ?? "") +
+          '</div>'
+        ).join("") +
+      '</article>';
+    }).join("") + "</div>";
+  }
+
+  if (d.debate_transcript) return renderTextBlock(d.debate_transcript);
+  return "";
+}
+function debateSection(d) {
+  const inner = renderDebate(d);
+  if (!inner) return "";
+  return '<div class="ruling__section"><h4>Agent debate</h4>' + inner + "</div>";
 }
 
 function showResults(d, transcriptFallback) {
@@ -332,12 +450,16 @@ function showResults(d, transcriptFallback) {
   console.log(d);
   console.groupEnd();
 
+  const category = d.category?.label ?? d.category?.key ?? d.category ?? "";
+  if (typeof d.category === "object") d.category = category;
   let html = "";
   if (d.category) html += '<p class="ruling__eyebrow">Analysis · ' + esc(d.category) + "</p>";
   else            html += '<p class="ruling__eyebrow">Analysis</p>';
-  html += section("Findings", d.analysis);
-  html += section("Opposing position", d.opponent);
-  if (!d.analysis && !d.opponent) html += section("Result", d);
+  html += section("Conclusion", d.final_answer);
+  html += section("Notice readiness", d.notice_readiness);
+  html += section("Uploaded evidence", d.input_source?.evidence_match);
+  html += debateSection(d);
+  if (!d.final_answer) html += section("Result", d);
 
   const ruling = $("ruling");
   ruling.className = "ruling reveal";
@@ -510,7 +632,12 @@ async function submitText() {
   try {
     res = await fetch(ANALYZE_TEXT_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: ocrText })
+      body: JSON.stringify({
+        question: ocrText,
+        include_final: true,
+        debug: false,
+        save_conversation: false
+      })
     });
     text = await res.text();
     clog("HTTP " + res.status + " — " + text.slice(0,400), res.ok?"info":"error");

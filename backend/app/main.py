@@ -1,11 +1,13 @@
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import check_mongodb_connection
 from app.routes.ingest import router as ingest_router
 from app.routes.ocr import router as ocr_router
 from app.routes.rag import router as rag_router
+from app.routes.speech import router as speech_router
 from app.utils.hashing import generate_integrity_hash
 
 
@@ -15,9 +17,18 @@ app = FastAPI(
     description="Backend API for legal grievance analysis, RAG, and agent workflows.",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(ingest_router)
 app.include_router(ocr_router)
 app.include_router(rag_router)
+app.include_router(speech_router)
 
 
 @app.get("/")
