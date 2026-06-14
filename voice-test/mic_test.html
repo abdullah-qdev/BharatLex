@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BharatLex Mic Test</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, system-ui, sans-serif; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+    }
+    main {
+      width: min(980px, calc(100% - 32px));
+      margin: 32px auto;
+      padding: 28px;
+      background: #fff;
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.08);
+      color: #1f2937;
+    }
+    h1 { margin: 0 0 18px; }
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-weight: 600;
+      color: white;
+      background: #4f46e5;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.danger { background: #dc2626; }
+    button.secondary { background: #6b7280; }
+    #status {
+      margin: 16px 0 8px;
+      font-weight: 700;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #timer { font-size: 13px; color: #6b7280; font-weight: 400; }
+    .panel {
+      margin-top: 14px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+    }
+    .panel h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 14px; line-height: 1.6; }
+    #log {
+      max-height: 240px;
+      overflow-y: auto;
+      font-size: 12px;
+      font-family: monospace;
+      background: #0f172a;
+      color: #86efac;
+      padding: 12px 14px;
+      border-radius: 12px;
+      line-height: 1.7;
+    }
+    .log-error { color: #fca5a5; }
+    .log-warn  { color: #fde68a; }
+    .log-ok    { color: #6ee7b7; }
+    .error-box {
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #fee2e2;
+      color: #991b1b;
+      border-radius: 12px;
+      display: none;
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    audio { width: 100%; margin-top: 8px; border-radius: 8px; }
+    .stage {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0 0;
+      flex-wrap: wrap;
+    }
+    .stage-item {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #f1f5f9;
+      color: #94a3b8;
+      border: 1px solid #e2e8f0;
+    }
+    .stage-item.done  { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+    .stage-item.active { background: #ede9fe; color: #4f46e5; border-color: #c4b5fd; }
+    .stage-item.error  { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>🎤 BharatLex — Mic Debug</h1>
+
+  <div class="controls">
+    <button id="startBtn">▶ Start Recording</button>
+    <button id="stopBtn" disabled class="danger">⏹ Stop &amp; Analyze</button>
+    <button id="resetBtn" class="secondary">↺ Reset</button>
+  </div>
+
+  <div id="status">Idle <span id="timer"></span></div>
+
+  <!-- Pipeline stages -->
+  <div class="stage">
+    <div class="stage-item" id="s-mic">1 · Mic</div>
+    <div class="stage-item" id="s-blob">2 · Blob</div>
+    <div class="stage-item" id="s-wav">3 · OGG convert</div>
+    <div class="stage-item" id="s-upload">4 · Upload</div>
+    <div class="stage-item" id="s-stt">5 · STT</div>
+  </div>
+
+  <div class="panel" id="audioPanel" style="display:none">
+    <h3>Playback check — listen before you send</h3>
+    <audio id="audioPlayer" controls></audio>
+    <div style="margin-top:6px; font-size:12px; color:#6b7280" id="audioMeta"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Transcript <span class="badge" id="langBadge" style="display:none"></span></h3>
+    <pre id="transcript">—</pre>
+  </div>
+
+  <div class="panel">
+    <h3>Category</h3>
+    <pre id="category">—</pre>
+  </div>
+
+  <div class="panel">
+    <h3>Analysis</h3>
+    <pre id="analysis">—</pre>
+  </div>
+
+  <div class="panel">
+    <h3>Opponent</h3>
+    <pre id="opponent">—</pre>
+  </div>
+
+  <div class="panel">
+    <h3>Debug log</h3>
+    <div id="log"></div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+</main>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────────
+const API_URL = "http://127.0.0.1:8000/analyze-audio";
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let recorder, micStream, chunks = [];
+let timerInterval, recSeconds = 0;
+let rawBlob = null;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function log(msg, level = "info") {
+  console.log(msg);
+  const div = document.createElement("div");
+  div.textContent = "[" + new Date().toISOString().slice(11, 19) + "] " + msg;
+  if (level === "error") div.className = "log-error";
+  else if (level === "warn") div.className = "log-warn";
+  else if (level === "ok")   div.className = "log-ok";
+  $("log").appendChild(div);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+function setStatus(msg) { $("status").textContent = msg; }
+
+function showError(msg) {
+  const el = $("errorBox");
+  el.style.display = "block";
+  el.textContent = "❌ " + msg;
+  log(msg, "error");
+}
+
+function clearError() {
+  $("errorBox").style.display = "none";
+}
+
+function setStage(id, state) {
+  // state: 'active' | 'done' | 'error' | '' (reset)
+  const el = $(id);
+  el.className = "stage-item" + (state ? " " + state : "");
+}
+
+function resetStages() {
+  ["s-mic","s-blob","s-wav","s-upload","s-stt"].forEach(id => setStage(id, ""));
+}
+
+function resetUI() {
+  clearError();
+  resetStages();
+  $("transcript").textContent = "—";
+  $("category").textContent = "—";
+  $("analysis").textContent = "—";
+  $("opponent").textContent = "—";
+  $("audioPanel").style.display = "none";
+  $("langBadge").style.display = "none";
+  $("startBtn").disabled = false;
+  $("stopBtn").disabled = true;
+  setStatus("Idle");
+  $("timer").textContent = "";
+  clearInterval(timerInterval);
+  recSeconds = 0;
+  chunks = [];
+  rawBlob = null;
+}
+
+// ─── OGG conversion ───────────────────────────────────────────────────────────
+// Strategy: if the browser recorded as OGG/Opus natively, use it directly.
+// Otherwise (Chrome records WebM/Opus), re-record via MediaRecorder forcing OGG,
+// or fall back to relabelling the blob — the Opus payload is identical either way,
+// only the container differs. Sarvam checks the Content-Type header + filename,
+// not the container magic bytes, so sending audio/ogg with a .ogg filename works.
+//
+// For browsers that support audio/ogg;codecs=opus in MediaRecorder (Firefox),
+// the blob is already a real OGG container. For Chrome (WebM only), we relabel —
+// the Opus frames are byte-for-byte the same; Sarvam's backend decodes Opus regardless.
+// If Sarvam ever rejects the relabelled blob, the fix is a server-side ffmpeg step,
+// not something resolvable in pure browser JS without a ~300 KB WASM Opus library.
+async function convertToOGG(blob) {
+  log("Input: " + blob.type + " (" + blob.size + " bytes)");
+
+  // Check magic bytes to know the real container
+  const header = await blob.slice(0, 4).arrayBuffer();
+  const magic = Array.from(new Uint8Array(header))
+    .map(b => b.toString(16).padStart(2, "0")).join(" ");
+  log("Container magic: " + magic);
+
+  // 4f 67 67 53 = OggS — already a real OGG file
+  if (magic === "4f 67 67 53") {
+    log("Already OGG container ✅ — passing through", "ok");
+    return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" });
+  }
+
+  // 1a 45 df a3 = EBML — WebM container (Chrome's output)
+  // Relabel: Opus payload is identical, only the container envelope differs.
+  // Sarvam accepts audio/ogg with Opus codec regardless of container magic.
+  if (magic === "1a 45 df a3") {
+    log("WebM container detected — relabelling as audio/ogg (Opus payload unchanged)", "warn");
+    return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" });
+  }
+
+  // Unknown container — still try relabelling and log a warning
+  log("Unknown container magic: " + magic + " — relabelling as audio/ogg anyway", "warn");
+  return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" });
+}
+
+// ─── Record ───────────────────────────────────────────────────────────────────
+$("startBtn").onclick = async () => {
+  clearError();
+  resetStages();
+  setStage("s-mic", "active");
+  chunks = [];
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: { ideal: 16000 },
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+
+    const track = micStream.getAudioTracks()[0];
+    const settings = track.getSettings();
+    log("Mic granted: " + track.label, "ok");
+    log("Track settings: rate=" + settings.sampleRate + " ch=" + settings.channelCount);
+    setStage("s-mic", "done");
+
+    // Pick a mimeType the browser actually supports
+    const preferredTypes = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/ogg"
+    ];
+    const mimeType = preferredTypes.find(t => MediaRecorder.isTypeSupported(t)) || "";
+    log("MediaRecorder mimeType: " + (mimeType || "(browser default)"));
+
+    recorder = new MediaRecorder(micStream, mimeType ? { mimeType } : {});
+
+    recorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+
+    recorder.start(200); // 200ms timeslice ensures chunks flush before onstop
+
+    recSeconds = 0;
+    timerInterval = setInterval(() => {
+      recSeconds++;
+      $("timer").textContent = "(" + recSeconds + "s)";
+    }, 1000);
+
+    setStatus("🔴 Recording…");
+    $("startBtn").disabled = true;
+    $("stopBtn").disabled = false;
+
+  } catch (err) {
+    setStage("s-mic", "error");
+    showError("Mic error — " + err.name + ": " + err.message);
+    setStatus("Idle");
+  }
+};
+
+// ─── Stop + full pipeline ─────────────────────────────────────────────────────
+$("stopBtn").onclick = async () => {
+  $("stopBtn").disabled = true;
+  clearInterval(timerInterval);
+  setStatus("Stopping…");
+
+  // Stop recorder — wait for onstop before proceeding
+  await new Promise(resolve => {
+    recorder.onstop = resolve;
+    recorder.stop();
+  });
+
+  // Release mic immediately
+  micStream.getTracks().forEach(t => t.stop());
+  log("Recorder stopped, " + chunks.length + " chunk(s) collected");
+
+  // ── Stage 2: Blob ────────────────────────────────────────────────────────
+  setStage("s-blob", "active");
+  rawBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+  log("Raw blob: type=" + rawBlob.type + ", size=" + rawBlob.size + " bytes");
+
+  if (rawBlob.size < 1000) {
+    setStage("s-blob", "error");
+    showError("Blob is too small (" + rawBlob.size + " bytes). Did you record anything?");
+    setStatus("Error");
+    $("startBtn").disabled = false;
+    return;
+  }
+  setStage("s-blob", "done");
+
+  // Show playback so user can verify audio before sending
+  const rawUrl = URL.createObjectURL(rawBlob);
+  $("audioPlayer").src = rawUrl;
+  $("audioPanel").style.display = "block";
+  $("audioMeta").textContent = "Raw format: " + rawBlob.type + " — " + rawBlob.size.toLocaleString() + " bytes — " + recSeconds + "s recorded";
+
+  // ── Stage 3: OGG conversion ───────────────────────────────────────────────
+  setStage("s-wav", "active");
+  setStatus("Preparing OGG…");
+  let oggBlob;
+  try {
+    oggBlob = await convertToOGG(rawBlob);
+    log("OGG blob ready: " + oggBlob.size + " bytes, type=" + oggBlob.type, "ok");
+    setStage("s-wav", "done");
+  } catch (err) {
+    setStage("s-wav", "error");
+    showError("OGG conversion failed: " + err.message);
+    setStatus("Error");
+    $("startBtn").disabled = false;
+    return;
+  }
+
+  // ── Stage 4: Upload ───────────────────────────────────────────────────────
+  setStage("s-upload", "active");
+  setStatus("Uploading…");
+
+  const formData = new FormData();
+  // .ogg filename + audio/ogg content-type — both matter for Sarvam
+  formData.append("file", oggBlob, "recording.ogg");
+
+  let res, text;
+  try {
+    res = await fetch(API_URL, { method: "POST", body: formData });
+    log("HTTP status: " + res.status + " " + res.statusText,
+        res.ok ? "ok" : "error");
+    text = await res.text();
+    log("Raw response: " + text.slice(0, 600));
+  } catch (fetchErr) {
+    setStage("s-upload", "error");
+    showError("Network/CORS error: " + fetchErr.message +
+              " — check FastAPI is running and CORS is configured.");
+    setStatus("Error");
+    $("startBtn").disabled = false;
+    return;
+  }
+
+  if (!res.ok) {
+    setStage("s-upload", "error");
+    setStage("s-stt", "error");
+    showError("Backend returned " + res.status + ": " + text.slice(0, 300));
+    setStatus("Error");
+    $("startBtn").disabled = false;
+    return;
+  }
+  setStage("s-upload", "done");
+
+  // ── Stage 5: Parse STT response ───────────────────────────────────────────
+  setStage("s-stt", "active");
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    setStage("s-stt", "error");
+    showError("Response is not valid JSON: " + text.slice(0, 200));
+    setStatus("Error");
+    $("startBtn").disabled = false;
+    return;
+  }
+
+  // Handle both { data: { transcript, ... } } and flat { transcript, ... }
+  const d = data.data ?? data;
+
+  const transcript = d.transcript ?? d.text ?? "(no transcript field)";
+  log("Transcript: " + transcript, "ok");
+
+  $("transcript").textContent = transcript;
+  $("category").textContent = d.category ?? "—";
+  $("analysis").textContent = d.analysis ? JSON.stringify(d.analysis, null, 2) : "—";
+  $("opponent").textContent = d.opponent ? JSON.stringify(d.opponent, null, 2) : "—";
+
+  if (d.language_code || d.detected_language) {
+    const lang = d.language_code ?? d.detected_language;
+    $("langBadge").textContent = lang;
+    $("langBadge").style.display = "inline-block";
+  }
+
+  setStage("s-stt", "done");
+  setStatus("✅ Done");
+  $("startBtn").disabled = false;
+};
+
+// ─── Reset ────────────────────────────────────────────────────────────────────
+$("resetBtn").onclick = () => {
+  if (recorder && recorder.state === "recording") {
+    recorder.stop();
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+  }
+  resetUI();
+  $("log").innerHTML = "";
+  log("Reset");
+};
+</script>
+</body>
+</html>
