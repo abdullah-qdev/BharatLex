@@ -4,7 +4,8 @@ from fastapi import FastAPI, HTTPException
 
 from app.database import check_mongodb_connection
 from app.routes.ingest import router as ingest_router
-from app.utils.hashing import generate_integrity_hash, verify_integrity_hash
+from app.routes.rag import router as rag_router
+from app.utils.hashing import generate_integrity_hash
 
 
 app = FastAPI(
@@ -14,6 +15,7 @@ app = FastAPI(
 )
 
 app.include_router(ingest_router)
+app.include_router(rag_router)
 
 
 @app.get("/")

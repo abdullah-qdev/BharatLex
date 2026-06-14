@@ -1,14 +1,16 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pymongo import UpdateOne
 
 from app.database import get_database
+from app.services.citations import extract_citation_metadata
 from app.services.document_loader import (
     list_legal_pdf_paths,
     load_legal_document,
     preview_legal_documents,
 )
+from app.services.ollama_client import embed_text
 
 
 router = APIRouter(prefix="/api/ingest", tags=["ingestion"])
@@ -25,7 +27,9 @@ def preview_legal_docs() -> dict:
 
 
 @router.post("/legal-docs")
-def ingest_legal_docs() -> dict:
+def ingest_legal_docs(
+    embed: bool = Query(default=False, description="Generate Ollama embeddings for RAG retrieval.")
+) -> dict:
     db = get_database()
     now = datetime.now(timezone.utc)
     paths = list_legal_pdf_paths()
@@ -57,21 +61,28 @@ def ingest_legal_docs() -> dict:
 
         for chunk in document.chunks:
             chunk_id = f"{document.relative_path}::chunk-{chunk.chunk_index}"
+            chunk_payload = {
+                "chunk_id": chunk_id,
+                "document_title": document.title,
+                "category": document.category,
+                "relative_path": document.relative_path,
+                "chunk_index": chunk.chunk_index,
+                "text": chunk.text,
+                "char_start": chunk.char_start,
+                "char_end": chunk.char_end,
+                "page_start": chunk.page_start,
+                "page_end": chunk.page_end,
+                "citation": extract_citation_metadata(chunk.text).to_dict(),
+                "updated_at": now,
+            }
+            if embed:
+                chunk_payload["embedding"] = embed_text(chunk.text)
+
             chunk_operations.append(
                 UpdateOne(
                     {"chunk_id": chunk_id},
                     {
-                        "$set": {
-                            "chunk_id": chunk_id,
-                            "document_title": document.title,
-                            "category": document.category,
-                            "relative_path": document.relative_path,
-                            "chunk_index": chunk.chunk_index,
-                            "text": chunk.text,
-                            "char_start": chunk.char_start,
-                            "char_end": chunk.char_end,
-                            "updated_at": now,
-                        },
+                        "$set": chunk_payload,
                         "$setOnInsert": {"created_at": now},
                     },
                     upsert=True,
@@ -88,5 +99,6 @@ def ingest_legal_docs() -> dict:
         "ok": True,
         "documents_found": len(paths),
         "chunks_written": len(chunk_operations),
+        "embedded": embed,
         "collections": ["legal_documents", "legal_chunks"],
     }
