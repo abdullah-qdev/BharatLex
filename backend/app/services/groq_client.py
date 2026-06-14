@@ -21,6 +21,12 @@ Write for a normal person, not a lawyer. Do not start with generic phrases like 
 Start with the user's immediate practical position in plain language.
 Be specific about what the evidence supports: replacement, refund/return of price, compensation, forum, missing proof, and uncertainty.
 Do not say legal notice is required or "may be needed" unless the retrieved evidence explicitly says so.
+Do not give generic advice such as "contact customer support", "consult a lawyer", or "check the website" unless it is tied to retrieved evidence.
+Every recommended step must be concrete, short, and connected to the user's facts.
+If the uploaded/OCR text provides useful facts, use them. If it is noisy or incomplete, say exactly what fact is missing.
+If uploaded evidence is marked as unrelated to the grievance, do not use it as proof. State briefly that the upload could not be matched and continue using the described grievance.
+If uploaded evidence is marked as a weak match, use it cautiously and say it should be verified before relying on it.
+If a professional Indian legal notice is appropriate, say what missing drafting details are needed. Do not draft a notice unless the necessary details are present.
 
 Use this exact structure:
 1. Short Answer
@@ -35,7 +41,7 @@ Citation style:
 - Use numbered citations like [1], [2], [3].
 - In earlier sections, refer to those citation numbers only.
 - Each citation must include chunk_id, document title, page range if available, and the specific supported point.
-Keep the full answer concise and non-overwhelming."""
+Keep the full answer concise, crisp, and non-overwhelming. No fluff."""
 
 
 def synthesize_answer(

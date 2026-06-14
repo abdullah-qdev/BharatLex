@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 
 from app.database import get_database
 from app.services.final_synthesizer import FinalSynthesisError, synthesize_final_answer
-from app.services.legal_catalog import get_category, list_categories
+from app.services.legal_catalog import classify_category, get_category, list_categories
+from app.services.notice_readiness import assess_notice_readiness
 from app.services.ollama_client import OllamaError
 from app.services.quad_polar_agents import run_agents
 from app.services.retriever import retrieve_chunks
@@ -71,16 +72,16 @@ class AskRequest(BaseModel):
     save_conversation: bool = True
 
 
-@router.get("/categories")
-def categories() -> dict:
-    return {"categories": list_categories()}
-
-
-@router.post("/ask")
-def ask_rag(request: AskRequest) -> dict:
+def run_rag_pipeline(request: AskRequest) -> dict:
     db = get_database()
     question = request.question.strip()
     selected_category = get_category(request.category)
+    classification = None
+    if not selected_category:
+        classification = classify_category(question)
+        detected = classification.get("category")
+        if detected and classification.get("confidence") in {"high", "medium"}:
+            selected_category = get_category(detected["key"])
 
     try:
         chunks = retrieve_chunks(
@@ -101,9 +102,12 @@ def ask_rag(request: AskRequest) -> dict:
             "message": "I could not find relevant information in the available legal documents.",
             "question": question,
             "category": selected_category.to_dict() if selected_category else None,
+            "category_detection": classification,
             "retrieved_chunks": [],
             "agents": [],
             "final_answer": None,
+            "final_error": None,
+            "notice_readiness": assess_notice_readiness(question, None),
         }
         if request.save_conversation:
             db.rag_conversations.insert_one({**result, "created_at": datetime.now(timezone.utc)})
@@ -156,12 +160,14 @@ def ask_rag(request: AskRequest) -> dict:
         "status": "answered" if request.include_final else "agents_complete",
         "question": question,
         "category": selected_category.to_dict() if selected_category else None,
+        "category_detection": classification,
         "retrieved_chunks": retrieved_chunks,
         "agents": agents_payload,
         "debate_rounds": _debate_by_round(agents),
         "debate_transcript": _debate_transcript(agents),
         "final_answer": final_answer,
         "final_error": final_error,
+        "notice_readiness": assess_notice_readiness(question, final_answer),
     }
     if request.save_conversation:
         try:
@@ -170,3 +176,13 @@ def ask_rag(request: AskRequest) -> dict:
             raise _debug_500("save_conversation", exc) from exc
 
     return result
+
+
+@router.get("/categories")
+def categories() -> dict:
+    return {"categories": list_categories()}
+
+
+@router.post("/ask")
+def ask_rag(request: AskRequest) -> dict:
+    return run_rag_pipeline(request)
