@@ -3,460 +3,551 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BharatLex Mic Test</title>
+  <title>BharatLex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: light; font-family: Inter, system-ui, sans-serif; }
+    :root {
+      color-scheme: dark;
+
+      --ink:        #0A0D17;
+      --ink-2:      #0E121F;
+      --surface:    #141A2B;
+      --surface-2:  #1B2236;
+      --line:       #262E45;
+      --line-soft:  #1C2336;
+
+      --brass:        #C8A35B;
+      --brass-bright: #E4C588;
+      --brass-dim:    #7E6A43;
+
+      --text:   #ECEAE3;
+      --muted:  #8A90A6;
+      --faint:  #5C627A;
+
+      --danger: #E0625A;
+      --ok:     #74C295;
+
+      --serif: "Spectral", Georgia, serif;
+      --sans:  "IBM Plex Sans", system-ui, sans-serif;
+      --mono:  "IBM Plex Mono", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
       min-height: 100vh;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(900px 600px at 50% 38%, rgba(200,163,91,0.10), transparent 60%),
+        radial-gradient(1200px 900px at 50% 120%, rgba(27,34,54,0.6), transparent 70%),
+        var(--ink);
+      background-attachment: fixed;
+    }
+
+    /* ── Hero: the only thing centered in the viewport ───────────────── */
+    .hero {
+      min-height: 100vh;
       display: flex;
-      justify-content: center;
-      background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
-    }
-    main {
-      width: min(980px, calc(100% - 32px));
-      margin: 32px auto;
-      padding: 28px;
-      background: #fff;
-      border-radius: 24px;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.08);
-      color: #1f2937;
-    }
-    h1 { margin: 0 0 18px; }
-    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    button {
-      border: none;
-      border-radius: 12px;
-      padding: 14px 20px;
-      font-weight: 600;
-      color: white;
-      background: #4f46e5;
-      cursor: pointer;
-      font-size: 15px;
-    }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    button.danger { background: #dc2626; }
-    button.secondary { background: #6b7280; }
-    #status {
-      margin: 16px 0 8px;
-      font-weight: 700;
-      font-size: 16px;
-      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
+      gap: 40px;
+      padding: 48px 24px;
+      text-align: center;
     }
-    #timer { font-size: 13px; color: #6b7280; font-weight: 400; }
-    .panel {
-      margin-top: 14px;
-      padding: 16px;
-      background: #f8fafc;
-      border-radius: 16px;
-      border: 1px solid #e2e8f0;
+
+    .brand { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .wordmark {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: clamp(40px, 7vw, 68px);
+      letter-spacing: 0.01em;
+      line-height: 1;
+      margin: 0;
     }
-    .panel h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
-    pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 14px; line-height: 1.6; }
-    #log {
-      max-height: 240px;
-      overflow-y: auto;
-      font-size: 12px;
-      font-family: monospace;
-      background: #0f172a;
-      color: #86efac;
-      padding: 12px 14px;
-      border-radius: 12px;
-      line-height: 1.7;
+    .wordmark b { font-weight: 600; color: var(--brass-bright); }
+    .rule {
+      width: 72px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--brass), transparent);
     }
-    .log-error { color: #fca5a5; }
-    .log-warn  { color: #fde68a; }
-    .log-ok    { color: #6ee7b7; }
-    .error-box {
-      margin-top: 12px;
-      padding: 12px 16px;
-      background: #fee2e2;
-      color: #991b1b;
-      border-radius: 12px;
-      display: none;
+    .tagline {
+      margin: 0;
       font-size: 14px;
+      color: var(--muted);
+      max-width: 30ch;
+      line-height: 1.5;
     }
-    .badge {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #e0e7ff;
-      color: #3730a3;
-    }
-    audio { width: 100%; margin-top: 8px; border-radius: 8px; }
-    .stage {
+
+    /* ── Controls ────────────────────────────────────────────────────── */
+    .controls {
       display: flex;
-      gap: 8px;
-      margin: 14px 0 0;
       flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
     }
-    .stage-item {
-      padding: 6px 12px;
-      border-radius: 8px;
-      font-size: 12px;
+
+    .btn {
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 13px 24px;
+      cursor: pointer;
+      transition: border-color .18s ease, background .18s ease,
+                  transform .12s ease, color .18s ease, box-shadow .18s ease;
+      position: relative;
+    }
+    .btn:hover:not(:disabled) { border-color: var(--brass-dim); background: var(--surface-2); }
+    .btn:active:not(:disabled) { transform: translateY(1px); }
+    .btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+    .btn:disabled { opacity: 0.32; cursor: not-allowed; }
+
+    /* Primary "Analyze" — the brass seal */
+    .btn--primary {
+      color: #1A140A;
+      background: linear-gradient(180deg, var(--brass-bright), var(--brass));
+      border: 1px solid var(--brass-bright);
       font-weight: 600;
-      background: #f1f5f9;
-      color: #94a3b8;
-      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset,
+                  0 10px 30px -10px rgba(200,163,91,0.5);
     }
-    .stage-item.done  { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
-    .stage-item.active { background: #ede9fe; color: #4f46e5; border-color: #c4b5fd; }
-    .stage-item.error  { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .btn--primary:hover:not(:disabled) {
+      background: linear-gradient(180deg, #EFD49B, var(--brass-bright));
+      box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset,
+                  0 14px 36px -10px rgba(200,163,91,0.6);
+    }
+
+    /* Recording state */
+    .btn--record.is-live {
+      color: var(--danger);
+      border-color: rgba(224,98,90,0.55);
+      background: rgba(224,98,90,0.08);
+    }
+    .btn--record.is-live::after {
+      content: "";
+      position: absolute; inset: -1px;
+      border-radius: 999px;
+      border: 1px solid var(--danger);
+      animation: pulse 1.6s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { opacity: .7; transform: scale(1); }
+      100% { opacity: 0;  transform: scale(1.18); }
+    }
+
+    /* ── Status readout ──────────────────────────────────────────────── */
+    .status {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 16px;
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted);
+      box-shadow: 0 0 0 0 transparent;
+    }
+    .status[data-state="live"]  .dot { background: var(--danger); box-shadow: 0 0 10px 1px rgba(224,98,90,.7); }
+    .status[data-state="busy"]  .dot { background: var(--brass); box-shadow: 0 0 10px 1px rgba(200,163,91,.6); }
+    .status[data-state="ok"]    .dot { background: var(--ok); box-shadow: 0 0 10px 1px rgba(116,194,149,.6); }
+    .status[data-state="error"] .dot { background: var(--danger); }
+    .status[data-state="error"] { color: var(--danger); }
+
+    /* ── Output section ──────────────────────────────────────────────── */
+    .output {
+      max-width: 720px;
+      margin: 0 auto 96px;
+      padding: 0 24px;
+    }
+    .ruling {
+      background: linear-gradient(180deg, var(--surface), var(--ink-2));
+      border: 1px solid var(--line);
+      border-top: 2px solid var(--brass);
+      border-radius: 16px;
+      padding: 28px 30px 30px;
+    }
+    .ruling.is-empty {
+      border-top-color: var(--line);
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 40px 30px;
+    }
+    .ruling__eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin: 0 0 18px;
+    }
+    .ruling__section + .ruling__section { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line-soft); }
+    .ruling__section h4 {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+    .ruling__text {
+      font-family: var(--serif);
+      font-size: 17px;
+      line-height: 1.6;
+      color: var(--text);
+      margin: 0;
+    }
+    .ruling dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; }
+    .ruling dt { font-family: var(--mono); font-size: 12px; color: var(--brass); align-self: baseline; }
+    .ruling dd { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text); }
+    .ruling ul { margin: 0; padding-left: 18px; }
+    .ruling li { font-size: 15px; line-height: 1.6; margin: 2px 0; }
+
+    .reveal { animation: rise .5s cubic-bezier(.2,.7,.2,1); }
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, ::after, ::before { animation: none !important; transition: none !important; }
+    }
+    @media (max-width: 520px) {
+      .controls { flex-direction: column; width: 100%; max-width: 320px; }
+      .btn { width: 100%; }
+    }
   </style>
 </head>
 <body>
-<main>
-  <h1>🎤 BharatLex — Mic Debug</h1>
 
-  <div class="controls">
-    <button id="startBtn">▶ Start Recording</button>
-    <button id="stopBtn" disabled class="danger">⏹ Stop &amp; Analyze</button>
-    <button id="resetBtn" class="secondary">↺ Reset</button>
-  </div>
+  <section class="hero">
+    <div class="brand">
+      <h1 class="wordmark">Bharat<b>Lex</b></h1>
+      <div class="rule"></div>
+      <p class="tagline">Record testimony or upload a document, then run the analysis.</p>
+    </div>
 
-  <div id="status">Idle <span id="timer"></span></div>
+    <div class="controls">
+      <button id="recordBtn" class="btn btn--record">Start recording</button>
+      <button id="uploadBtn" class="btn">Upload document</button>
+      <button id="submitBtn" class="btn btn--primary" disabled>Analyze</button>
+      <button id="resetBtn" class="btn">Clear</button>
+      <input type="file" id="fileInput"
+             accept="image/*,.pdf,.txt,.png,.jpg,.jpeg,.webp,.tiff,.bmp"
+             hidden />
+    </div>
 
-  <!-- Pipeline stages -->
-  <div class="stage">
-    <div class="stage-item" id="s-mic">1 · Mic</div>
-    <div class="stage-item" id="s-blob">2 · Blob</div>
-    <div class="stage-item" id="s-wav">3 · OGG convert</div>
-    <div class="stage-item" id="s-upload">4 · Upload</div>
-    <div class="stage-item" id="s-stt">5 · STT</div>
-  </div>
+    <div class="status" id="status" data-state="idle">
+      <span class="dot"></span><span id="statusText">Idle</span>
+    </div>
+  </section>
 
-  <div class="panel" id="audioPanel" style="display:none">
-    <h3>Playback check — listen before you send</h3>
-    <audio id="audioPlayer" controls></audio>
-    <div style="margin-top:6px; font-size:12px; color:#6b7280" id="audioMeta"></div>
-  </div>
-
-  <div class="panel">
-    <h3>Transcript <span class="badge" id="langBadge" style="display:none"></span></h3>
-    <pre id="transcript">—</pre>
-  </div>
-
-  <div class="panel">
-    <h3>Category</h3>
-    <pre id="category">—</pre>
-  </div>
-
-  <div class="panel">
-    <h3>Analysis</h3>
-    <pre id="analysis">—</pre>
-  </div>
-
-  <div class="panel">
-    <h3>Opponent</h3>
-    <pre id="opponent">—</pre>
-  </div>
-
-  <div class="panel">
-    <h3>Debug log</h3>
-    <div id="log"></div>
-  </div>
-
-  <div class="error-box" id="errorBox"></div>
-</main>
+  <section class="output" id="output">
+    <div class="ruling is-empty" id="ruling">
+      No analysis yet. Capture audio or upload a document, then press Analyze.
+    </div>
+  </section>
 
 <script>
 // ─── Config ───────────────────────────────────────────────────────────────────
-const API_URL = "http://127.0.0.1:8000/analyze-audio";
+const API_BASE          = "http://127.0.0.1:8000";
+const ANALYZE_AUDIO_URL = API_BASE + "/analyze-audio";   // audio  -> STT + analysis
+const OCR_URL           = API_BASE + "/ocr";             // file/image -> ocr_normalized.py -> txt
+const ANALYZE_TEXT_URL  = API_BASE + "/analyze-text";    // txt -> analysis
+//
+// NOTE: the browser can't run ../backend/ocr/ocr_normalized.py directly. Expose it
+// as a FastAPI route (OCR_URL) that accepts the file, runs the script, and returns
+// JSON: { text: "..." }.
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let recorder, micStream, chunks = [];
 let timerInterval, recSeconds = 0;
-let rawBlob = null;
+let rawBlob = null, ocrText = null;
+let activeInput = null;        // 'audio' | 'file'
+let isRecording = false, recordingUsed = false;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Console-only diagnostics ─────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
+const STYLE = "color:#C8A35B";
+function clog(msg, level = "info") {
+  const tag = "%c[BharatLex] " + msg;
+  if (level === "error") console.error(tag, STYLE);
+  else if (level === "warn") console.warn(tag, STYLE);
+  else console.log(tag, STYLE);
+}
+function stage(name, state) { clog("stage · " + name + " → " + state, state === "error" ? "error" : "info"); }
 
-function log(msg, level = "info") {
-  console.log(msg);
-  const div = document.createElement("div");
-  div.textContent = "[" + new Date().toISOString().slice(11, 19) + "] " + msg;
-  if (level === "error") div.className = "log-error";
-  else if (level === "warn") div.className = "log-warn";
-  else if (level === "ok")   div.className = "log-ok";
-  $("log").appendChild(div);
-  $("log").scrollTop = $("log").scrollHeight;
+// ─── Status pill ──────────────────────────────────────────────────────────────
+function setStatus(text, state = "idle") {
+  $("statusText").textContent = text;
+  $("status").dataset.state = state;
+}
+function setError(msg) {
+  setStatus(msg.length > 60 ? msg.slice(0, 57) + "…" : msg, "error");
+  clog(msg, "error");
 }
 
-function setStatus(msg) { $("status").textContent = msg; }
-
-function showError(msg) {
-  const el = $("errorBox");
-  el.style.display = "block";
-  el.textContent = "❌ " + msg;
-  log(msg, "error");
+function updateSubmitState() {
+  $("submitBtn").disabled =
+    !(activeInput === "audio" && rawBlob) && !(activeInput === "file" && ocrText);
 }
 
-function clearError() {
-  $("errorBox").style.display = "none";
+// ─── Output rendering (the only on-page result surface) ───────────────────────
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+function renderValue(v) {
+  if (v == null || v === "") return "";
+  if (Array.isArray(v))
+    return "<ul>" + v.map(i => "<li>" + esc(typeof i === "object" ? JSON.stringify(i) : i) + "</li>").join("") + "</ul>";
+  if (typeof v === "object")
+    return "<dl>" + Object.entries(v).map(([k, val]) =>
+      "<dt>" + esc(k) + "</dt><dd>" + (typeof val === "object" ? esc(JSON.stringify(val)) : esc(val)) + "</dd>"
+    ).join("") + "</dl>";
+  return '<p class="ruling__text">' + esc(v) + "</p>";
+}
+function section(title, value) {
+  const inner = renderValue(value);
+  if (!inner) return "";
+  return '<div class="ruling__section"><h4>' + esc(title) + "</h4>" + inner + "</div>";
 }
 
-function setStage(id, state) {
-  // state: 'active' | 'done' | 'error' | '' (reset)
-  const el = $(id);
-  el.className = "stage-item" + (state ? " " + state : "");
+function showResults(d, transcriptFallback) {
+  const transcript = d.transcript ?? d.text ?? transcriptFallback ?? "";
+  // Transcript + raw payload stay in the console, per design.
+  console.groupCollapsed("%c[BharatLex] result", STYLE);
+  clog("transcript: " + (transcript || "(none)"));
+  if (d.language_code || d.detected_language) clog("language: " + (d.language_code ?? d.detected_language));
+  console.log(d);
+  console.groupEnd();
+
+  let html = "";
+  if (d.category) html += '<p class="ruling__eyebrow">Analysis · ' + esc(d.category) + "</p>";
+  else            html += '<p class="ruling__eyebrow">Analysis</p>';
+  html += section("Findings", d.analysis);
+  html += section("Opposing position", d.opponent);
+  if (!d.analysis && !d.opponent) html += section("Result", d);
+
+  const ruling = $("ruling");
+  ruling.className = "ruling reveal";
+  ruling.innerHTML = html;
+  $("output").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function resetStages() {
-  ["s-mic","s-blob","s-wav","s-upload","s-stt"].forEach(id => setStage(id, ""));
+function clearOutput() {
+  const ruling = $("ruling");
+  ruling.className = "ruling is-empty";
+  ruling.textContent = "No analysis yet. Capture audio or upload a document, then press Analyze.";
 }
 
-function resetUI() {
-  clearError();
-  resetStages();
-  $("transcript").textContent = "—";
-  $("category").textContent = "—";
-  $("analysis").textContent = "—";
-  $("opponent").textContent = "—";
-  $("audioPanel").style.display = "none";
-  $("langBadge").style.display = "none";
-  $("startBtn").disabled = false;
-  $("stopBtn").disabled = true;
-  setStatus("Idle");
-  $("timer").textContent = "";
-  clearInterval(timerInterval);
-  recSeconds = 0;
-  chunks = [];
-  rawBlob = null;
-}
-
-// ─── OGG conversion ───────────────────────────────────────────────────────────
-// Strategy: if the browser recorded as OGG/Opus natively, use it directly.
-// Otherwise (Chrome records WebM/Opus), re-record via MediaRecorder forcing OGG,
-// or fall back to relabelling the blob — the Opus payload is identical either way,
-// only the container differs. Sarvam checks the Content-Type header + filename,
-// not the container magic bytes, so sending audio/ogg with a .ogg filename works.
-//
-// For browsers that support audio/ogg;codecs=opus in MediaRecorder (Firefox),
-// the blob is already a real OGG container. For Chrome (WebM only), we relabel —
-// the Opus frames are byte-for-byte the same; Sarvam's backend decodes Opus regardless.
-// If Sarvam ever rejects the relabelled blob, the fix is a server-side ffmpeg step,
-// not something resolvable in pure browser JS without a ~300 KB WASM Opus library.
+// ─── OGG conversion (audio path) ──────────────────────────────────────────────
 async function convertToOGG(blob) {
-  log("Input: " + blob.type + " (" + blob.size + " bytes)");
-
-  // Check magic bytes to know the real container
+  clog("input: " + blob.type + " (" + blob.size + " bytes)");
   const header = await blob.slice(0, 4).arrayBuffer();
-  const magic = Array.from(new Uint8Array(header))
-    .map(b => b.toString(16).padStart(2, "0")).join(" ");
-  log("Container magic: " + magic);
-
-  // 4f 67 67 53 = OggS — already a real OGG file
-  if (magic === "4f 67 67 53") {
-    log("Already OGG container ✅ — passing through", "ok");
-    return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" });
-  }
-
-  // 1a 45 df a3 = EBML — WebM container (Chrome's output)
-  // Relabel: Opus payload is identical, only the container envelope differs.
-  // Sarvam accepts audio/ogg with Opus codec regardless of container magic.
-  if (magic === "1a 45 df a3") {
-    log("WebM container detected — relabelling as audio/ogg (Opus payload unchanged)", "warn");
-    return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" });
-  }
-
-  // Unknown container — still try relabelling and log a warning
-  log("Unknown container magic: " + magic + " — relabelling as audio/ogg anyway", "warn");
+  const magic = Array.from(new Uint8Array(header)).map(b => b.toString(16).padStart(2, "0")).join(" ");
+  clog("container magic: " + magic);
+  if (magic === "4f 67 67 53") { clog("already OGG — pass through"); return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" }); }
+  if (magic === "1a 45 df a3") { clog("WebM — relabel as audio/ogg (Opus payload unchanged)", "warn"); return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" }); }
+  clog("unknown magic — relabel as audio/ogg anyway", "warn");
   return new Blob([await blob.arrayBuffer()], { type: "audio/ogg" });
 }
 
-// ─── Record ───────────────────────────────────────────────────────────────────
-$("startBtn").onclick = async () => {
-  clearError();
-  resetStages();
-  setStage("s-mic", "active");
-  chunks = [];
+// ─── Start / Stop (one-shot recording) ────────────────────────────────────────
+$("recordBtn").onclick = () => (isRecording ? stopRecording() : startRecording());
 
+async function startRecording() {
+  chunks = [];
+  stage("mic", "active");
   try {
     micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        sampleRate: { ideal: 16000 },
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      }
+      audio: { channelCount: 1, sampleRate: { ideal: 16000 },
+               echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
-
     const track = micStream.getAudioTracks()[0];
-    const settings = track.getSettings();
-    log("Mic granted: " + track.label, "ok");
-    log("Track settings: rate=" + settings.sampleRate + " ch=" + settings.channelCount);
-    setStage("s-mic", "done");
+    clog("mic granted: " + track.label);
 
-    // Pick a mimeType the browser actually supports
-    const preferredTypes = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/ogg"
-    ];
-    const mimeType = preferredTypes.find(t => MediaRecorder.isTypeSupported(t)) || "";
-    log("MediaRecorder mimeType: " + (mimeType || "(browser default)"));
+    const types = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
+    const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+    clog("mimeType: " + (mimeType || "(default)"));
 
     recorder = new MediaRecorder(micStream, mimeType ? { mimeType } : {});
-
-    recorder.ondataavailable = e => {
-      if (e.data && e.data.size > 0) chunks.push(e.data);
-    };
-
-    recorder.start(200); // 200ms timeslice ensures chunks flush before onstop
+    recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+    recorder.start(200);
 
     recSeconds = 0;
     timerInterval = setInterval(() => {
       recSeconds++;
-      $("timer").textContent = "(" + recSeconds + "s)";
+      const m = String(Math.floor(recSeconds/60)).padStart(1,"0");
+      const s = String(recSeconds%60).padStart(2,"0");
+      setStatus("Recording " + m + ":" + s, "live");
     }, 1000);
 
-    setStatus("🔴 Recording…");
-    $("startBtn").disabled = true;
-    $("stopBtn").disabled = false;
-
+    isRecording = true;
+    setStatus("Recording 0:00", "live");
+    $("recordBtn").textContent = "Stop recording";
+    $("recordBtn").classList.add("is-live");
+    $("submitBtn").disabled = true;
+    $("uploadBtn").disabled = true;
+    stage("mic", "done");
   } catch (err) {
-    setStage("s-mic", "error");
-    showError("Mic error — " + err.name + ": " + err.message);
-    setStatus("Idle");
+    stage("mic", "error");
+    setError("Mic error — " + err.name);
   }
-};
+}
 
-// ─── Stop + full pipeline ─────────────────────────────────────────────────────
-$("stopBtn").onclick = async () => {
-  $("stopBtn").disabled = true;
+async function stopRecording() {
   clearInterval(timerInterval);
-  setStatus("Stopping…");
-
-  // Stop recorder — wait for onstop before proceeding
-  await new Promise(resolve => {
-    recorder.onstop = resolve;
-    recorder.stop();
-  });
-
-  // Release mic immediately
+  setStatus("Finishing…", "busy");
+  await new Promise(res => { recorder.onstop = res; recorder.stop(); });
   micStream.getTracks().forEach(t => t.stop());
-  log("Recorder stopped, " + chunks.length + " chunk(s) collected");
 
-  // ── Stage 2: Blob ────────────────────────────────────────────────────────
-  setStage("s-blob", "active");
   rawBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-  log("Raw blob: type=" + rawBlob.type + ", size=" + rawBlob.size + " bytes");
+  clog("raw blob: " + rawBlob.type + ", " + rawBlob.size + " bytes");
 
-  if (rawBlob.size < 1000) {
-    setStage("s-blob", "error");
-    showError("Blob is too small (" + rawBlob.size + " bytes). Did you record anything?");
-    setStatus("Error");
-    $("startBtn").disabled = false;
-    return;
-  }
-  setStage("s-blob", "done");
+  isRecording = false; recordingUsed = true;
+  $("recordBtn").classList.remove("is-live");
+  $("recordBtn").textContent = "Recorded";
+  $("recordBtn").disabled = true;       // one-shot: no restart until Clear
+  $("uploadBtn").disabled = false;
 
-  // Show playback so user can verify audio before sending
-  const rawUrl = URL.createObjectURL(rawBlob);
-  $("audioPlayer").src = rawUrl;
-  $("audioPanel").style.display = "block";
-  $("audioMeta").textContent = "Raw format: " + rawBlob.type + " — " + rawBlob.size.toLocaleString() + " bytes — " + recSeconds + "s recorded";
+  if (rawBlob.size < 1000) { stage("blob","error"); setError("Recording too short — press Clear and retry"); return; }
+  stage("blob", "done");
 
-  // ── Stage 3: OGG conversion ───────────────────────────────────────────────
-  setStage("s-wav", "active");
-  setStatus("Preparing OGG…");
-  let oggBlob;
-  try {
-    oggBlob = await convertToOGG(rawBlob);
-    log("OGG blob ready: " + oggBlob.size + " bytes, type=" + oggBlob.type, "ok");
-    setStage("s-wav", "done");
-  } catch (err) {
-    setStage("s-wav", "error");
-    showError("OGG conversion failed: " + err.message);
-    setStatus("Error");
-    $("startBtn").disabled = false;
-    return;
-  }
+  activeInput = "audio";
+  setStatus("Ready to analyze · audio", "ok");
+  updateSubmitState();
+}
 
-  // ── Stage 4: Upload ───────────────────────────────────────────────────────
-  setStage("s-upload", "active");
-  setStatus("Uploading…");
+// ─── Upload → OCR ─────────────────────────────────────────────────────────────
+$("uploadBtn").onclick = () => $("fileInput").click();
 
-  const formData = new FormData();
-  // .ogg filename + audio/ogg content-type — both matter for Sarvam
-  formData.append("file", oggBlob, "recording.ogg");
+$("fileInput").onchange = async () => {
+  const file = $("fileInput").files[0];
+  if (!file) return;
+  clog("file: " + file.name + " (" + file.type + ", " + file.size + " bytes)");
+  stage("file", "done");
+  stage("ocr", "active");
+  setStatus("Reading document…", "busy");
+  $("submitBtn").disabled = true;
+
+  const fd = new FormData();
+  fd.append("file", file, file.name);
 
   let res, text;
   try {
-    res = await fetch(API_URL, { method: "POST", body: formData });
-    log("HTTP status: " + res.status + " " + res.statusText,
-        res.ok ? "ok" : "error");
+    res = await fetch(OCR_URL, { method: "POST", body: fd });
     text = await res.text();
-    log("Raw response: " + text.slice(0, 600));
-  } catch (fetchErr) {
-    setStage("s-upload", "error");
-    showError("Network/CORS error: " + fetchErr.message +
-              " — check FastAPI is running and CORS is configured.");
-    setStatus("Error");
-    $("startBtn").disabled = false;
-    return;
-  }
+    clog("OCR HTTP " + res.status + " — " + text.slice(0, 400), res.ok ? "info" : "error");
+  } catch (err) { stage("ocr","error"); setError("OCR unreachable — is " + OCR_URL + " running?"); return; }
 
-  if (!res.ok) {
-    setStage("s-upload", "error");
-    setStage("s-stt", "error");
-    showError("Backend returned " + res.status + ": " + text.slice(0, 300));
-    setStatus("Error");
-    $("startBtn").disabled = false;
-    return;
-  }
-  setStage("s-upload", "done");
+  if (!res.ok) { stage("ocr","error"); setError("OCR failed (" + res.status + ")"); return; }
 
-  // ── Stage 5: Parse STT response ───────────────────────────────────────────
-  setStage("s-stt", "active");
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    setStage("s-stt", "error");
-    showError("Response is not valid JSON: " + text.slice(0, 200));
-    setStatus("Error");
-    $("startBtn").disabled = false;
-    return;
-  }
+  let parsed; try { parsed = JSON.parse(text); }
+  catch { stage("ocr","error"); setError("OCR returned non-JSON"); return; }
 
-  // Handle both { data: { transcript, ... } } and flat { transcript, ... }
-  const d = data.data ?? data;
+  const od = parsed.data ?? parsed;
+  ocrText = od.text ?? od.transcript ?? od.ocr_text ?? "";
+  if (!ocrText.trim()) { stage("ocr","error"); setError("OCR returned empty text"); return; }
 
-  const transcript = d.transcript ?? d.text ?? "(no transcript field)";
-  log("Transcript: " + transcript, "ok");
+  stage("ocr", "done");
+  clog("OCR text (" + ocrText.length + " chars):\n" + ocrText);
 
-  $("transcript").textContent = transcript;
-  $("category").textContent = d.category ?? "—";
-  $("analysis").textContent = d.analysis ? JSON.stringify(d.analysis, null, 2) : "—";
-  $("opponent").textContent = d.opponent ? JSON.stringify(d.opponent, null, 2) : "—";
-
-  if (d.language_code || d.detected_language) {
-    const lang = d.language_code ?? d.detected_language;
-    $("langBadge").textContent = lang;
-    $("langBadge").style.display = "inline-block";
-  }
-
-  setStage("s-stt", "done");
-  setStatus("✅ Done");
-  $("startBtn").disabled = false;
+  activeInput = "file";
+  setStatus("Ready to analyze · document", "ok");
+  updateSubmitState();
 };
 
-// ─── Reset ────────────────────────────────────────────────────────────────────
+// ─── Analyze ──────────────────────────────────────────────────────────────────
+$("submitBtn").onclick = async () => {
+  $("submitBtn").disabled = true;
+  if (activeInput === "audio") await submitAudio();
+  else if (activeInput === "file") await submitText();
+  else setError("Nothing to analyze yet");
+};
+
+async function submitAudio() {
+  setStatus("Preparing audio…", "busy");
+  let ogg;
+  try { ogg = await convertToOGG(rawBlob); stage("ogg","done"); }
+  catch (err) { stage("ogg","error"); setError("Audio prep failed"); updateSubmitState(); return; }
+
+  setStatus("Analyzing…", "busy");
+  stage("upload", "active");
+  const fd = new FormData();
+  fd.append("file", ogg, "recording.ogg");
+
+  let res, text;
+  try { res = await fetch(ANALYZE_AUDIO_URL, { method:"POST", body: fd }); text = await res.text();
+        clog("HTTP " + res.status + " — " + text.slice(0,400), res.ok?"info":"error"); }
+  catch (err) { stage("upload","error"); setError("Backend unreachable — check CORS"); updateSubmitState(); return; }
+
+  if (!res.ok) { stage("upload","error"); setError("Backend " + res.status); updateSubmitState(); return; }
+  stage("upload","done");
+
+  let data; try { data = JSON.parse(text); }
+  catch { stage("stt","error"); setError("Response not JSON"); updateSubmitState(); return; }
+
+  showResults(data.data ?? data);
+  stage("stt","done");
+  setStatus("Complete", "ok");
+}
+
+async function submitText() {
+  setStatus("Analyzing…", "busy");
+  stage("analyze", "active");
+  let res, text;
+  try {
+    res = await fetch(ANALYZE_TEXT_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: ocrText })
+    });
+    text = await res.text();
+    clog("HTTP " + res.status + " — " + text.slice(0,400), res.ok?"info":"error");
+  } catch (err) { stage("analyze","error"); setError("Backend unreachable — check " + ANALYZE_TEXT_URL); updateSubmitState(); return; }
+
+  if (!res.ok) { stage("analyze","error"); setError("Backend " + res.status); updateSubmitState(); return; }
+
+  let data; try { data = JSON.parse(text); }
+  catch { stage("analyze","error"); setError("Response not JSON"); updateSubmitState(); return; }
+
+  showResults(data.data ?? data, ocrText);
+  stage("analyze","done");
+  setStatus("Complete", "ok");
+}
+
+// ─── Clear ────────────────────────────────────────────────────────────────────
 $("resetBtn").onclick = () => {
   if (recorder && recorder.state === "recording") {
     recorder.stop();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
   }
-  resetUI();
-  $("log").innerHTML = "";
-  log("Reset");
+  clearInterval(timerInterval);
+  recSeconds = 0; chunks = [];
+  rawBlob = null; ocrText = null; activeInput = null;
+  isRecording = false; recordingUsed = false;
+
+  $("recordBtn").disabled = false;
+  $("recordBtn").classList.remove("is-live");
+  $("recordBtn").textContent = "Start recording";
+  $("uploadBtn").disabled = false;
+  $("submitBtn").disabled = true;
+  $("fileInput").value = "";
+
+  clearOutput();
+  setStatus("Idle", "idle");
+  console.clear();
+  clog("cleared");
 };
 </script>
 </body>

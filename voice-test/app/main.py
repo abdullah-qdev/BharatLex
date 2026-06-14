@@ -6,7 +6,6 @@ import os
 import time
 
 from app.services.pipeline import process_audio
-
 app = FastAPI()
 
 UPLOAD_DIR = "uploads"
